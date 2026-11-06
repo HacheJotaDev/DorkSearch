@@ -1,0 +1,14 @@
+# Proxies reales — nunca subirlos
+proxies.txt
+
+# Salidas generadas
+urls.txt
+*.out
+
+# Python
+__pycache__/
+*.pyc
+
+# Credenciales / claves
+.env
+*.key

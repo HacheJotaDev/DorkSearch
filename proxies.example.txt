@@ -1,0 +1,7 @@
+# Ejemplo de archivo de proxies.
+# Formato: IP:PORT:USER:PASSWORD   (o IP:PORT sin autenticación)
+# Copia este archivo a `proxies.txt` y añade tus proxies reales.
+# NO subas proxies.txt al repositorio (está en .gitignore).
+
+203.0.113.7:8080:user1:pass1
+198.51.100.23:9000:user2:pass2
