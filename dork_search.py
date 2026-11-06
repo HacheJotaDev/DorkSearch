@@ -2,29 +2,26 @@
 """
 URLs Google Dorks Searcher — extrae URLs con dorks de Google (recon / OSINT).
 
-Herramienta 100% por consola y multiplataforma (Linux, Windows, Termux/Android).
-Busca y lista URLs; NO explota nada. Uso: reconocimiento OSINT, auditorías de
-seguridad AUTORIZADAS, bug bounty dentro del scope e investigación defensiva.
+Herramienta 100% por consola, interactiva (menú), multiplataforma:
+Linux, Windows y Termux/Android. Se ejecuta SIN comandos: solo
+
+    python dork_search.py        (Windows: py dork_search.py)
+
+y eliges la opción en el menú.
 
 Proxies residenciales rotativos en formato  IP:PORT:USER:PASSWORD  (o IP:PORT).
 
-Backends:
-  (default)     scraping directo del SERP de Google (sin clave; frágil).
-  --api-key/--cx  Google Custom Search JSON API (fiable, 100 consultas/día).
+Uso: reconocimiento OSINT, auditorías de seguridad AUTORIZADAS, bug bounty
+dentro del scope del programa e investigación defensiva. Busca y lista URLs;
+NO explota nada.
 
 Dependencia: requests  (python3 -m pip install requests)
-
-Ejemplos:
-  python3 dork_search.py --list-dorks
-  python3 dork_search.py 'inurl:index.php?id='
-  python3 dork_search.py --category sqli --proxies proxies.txt --out urls.txt
-  python3 dork_search.py --check-proxies proxies.txt --test
 """
 
-import argparse
 import random
 import re
 import sys
+import time
 import urllib.parse
 
 try:
@@ -36,7 +33,7 @@ except ImportError:  # pragma: no cover
         "  Windows:       py -m pip install requests"
     )
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 BANNER = r"""
 ===========================================================
@@ -50,10 +47,6 @@ UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
-
-# --------------------------------------------------------------------------- #
-# Dork presets (reconocimiento estándar, estilo GHDB)
-# --------------------------------------------------------------------------- #
 
 DORKS = {
     "sqli": [
@@ -98,6 +91,7 @@ DORKS = {
     ],
 }
 
+
 # --------------------------------------------------------------------------- #
 # Proxies
 # --------------------------------------------------------------------------- #
@@ -126,13 +120,12 @@ def pick_proxy(proxies: list[str]) -> dict | None:
     return {"http": url, "https": url}
 
 
-def check_proxies(path: str, test: bool, timeout: int) -> int:
-    """Valida el formato de proxies.txt y opcionalmente prueba conectividad."""
+def check_proxies(path: str, test: bool, timeout: int) -> None:
     proxies = load_proxies(path)
     if not proxies:
-        print(f"[!] No hay proxies en {path}")
-        return 1
-    print(f"[*] {len(proxies)} proxies cargados desde {path}\n")
+        print(f"\n[!] No hay proxies en {path}")
+        return
+    print(f"\n[*] {len(proxies)} proxies cargados desde {path}\n")
     ok = 0
     for p in proxies:
         try:
@@ -146,13 +139,11 @@ def check_proxies(path: str, test: bool, timeout: int) -> int:
                 proxies={"http": url, "https": url},
                 timeout=timeout,
             )
-            ip = r.json().get("ip", "?")
-            print(f"  [OK]   {p}  ->  {ip}")
+            print(f"  [OK]   {p}  ->  {r.json().get('ip', '?')}")
             ok += 1
         except Exception as exc:  # noqa: BLE001
             print(f"  [FAIL] {p}  ->  {exc}")
     print(f"\n[*] {ok}/{len(proxies)} proxies válidos")
-    return 0 if ok else 1
 
 
 # --------------------------------------------------------------------------- #
@@ -206,42 +197,20 @@ def in_scope(url: str, scope: list[str]) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# CLI
+# Motor de búsqueda compartido (menú y CLI)
 # --------------------------------------------------------------------------- #
 
 
-def cmd_search(args) -> int:
-    if args.category:
-        queries = DORKS[args.category]
-    elif args.dorks:
-        with open(args.dorks) as fh:
-            queries = [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
-    else:
-        queries = [args.query]
-
-    if args.api_key and not args.cx:
-        print("[!] --api-key requiere --cx"); return 2
-    if args.cx and not args.api_key:
-        print("[!] --cx requiere --api-key"); return 2
-
-    proxies = load_proxies(args.proxies) if args.proxies else []
-    scope = load_scope(args.scope) if args.scope else []
-
-    print(BANNER)
-    if proxies:
-        print(f"[*] {len(proxies)} proxies cargados (rotativos)")
-    if scope:
-        print(f"[*] Filtro de scope activo: {len(scope)} dominio(s)")
-
+def run_queries(queries, proxies, scope, out, max_results, api_key, cx, delay):
     collected = []
     for i, q in enumerate(queries, 1):
         px = pick_proxy(proxies)
         print(f"\n[*] ({i}/{len(queries)}) dork: {q}")
         try:
-            if args.api_key:
-                urls = google_cse(args.api_key, args.cx, q, px, args.max)
+            if api_key:
+                urls = google_cse(api_key, cx, q, px, max_results)
             else:
-                urls = scrape_google(q, px, args.max)
+                urls = scrape_google(q, px, max_results)
         except Exception as exc:  # noqa: BLE001
             print(f"    ! error: {exc}")
             urls = []
@@ -251,7 +220,8 @@ def cmd_search(args) -> int:
         for u in filtered:
             print(f"    {u}")
         if not filtered:
-            print("    (sin resultados — Google puede bloquear el scraping; usa --api-key/--cx)")
+            print("    (sin resultados — Google puede bloquear el scraping; usa la API key en el menú)")
+        time.sleep(delay)
 
     seen, final = set(), []
     for u in collected:
@@ -260,50 +230,103 @@ def cmd_search(args) -> int:
             final.append(u)
 
     print(f"\n[*] Total de URLs únicas: {len(final)}")
-    if args.out:
-        with open(args.out, "w") as fh:
+    if out:
+        with open(out, "w") as fh:
             fh.write("\n".join(final) + ("\n" if final else ""))
-        print(f"[*] Guardado en {args.out}")
-    return 0
+        print(f"[*] Guardado en {out}")
+    return len(final)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(
-        prog="dork_search.py",
-        description="URLs Google Dorks Searcher — extrae URLs con dorks de Google (recon/OSINT).",
-    )
-    ap.add_argument("query", nargs="?", help="Un dork, p.ej. 'inurl:index.php?id='")
-    ap.add_argument("--category", choices=list(DORKS), help="Categoría de dorks predefinida")
-    ap.add_argument("--dorks", help="Archivo con un dork por línea")
-    ap.add_argument("--list-dorks", action="store_true", help="Lista los dorks incluidos y sale")
-    ap.add_argument("--out", help="Guarda las URLs en este archivo")
-    ap.add_argument("--max", type=int, default=10, help="Resultados por dork (default 10)")
-    ap.add_argument("--proxies", help="Archivo de proxies (IP:PORT[:USER[:PASSWORD]])")
-    ap.add_argument("--api-key", help="Clave de Google Custom Search JSON API")
-    ap.add_argument("--cx", help="ID del motor de Google Custom Search (con --api-key)")
-    ap.add_argument("--scope", help="Solo conserva URLs cuyo host esté en este archivo")
-    ap.add_argument("--delay", type=float, default=1.0, help="Segundos entre consultas (default 1.0)")
-    ap.add_argument("--check-proxies", metavar="FILE", help="Valida un archivo de proxies y sale")
-    ap.add_argument("--test", action="store_true", help="Con --check-proxies: prueba conectividad real")
-    ap.add_argument("--timeout", type=int, default=10, help="Timeout por petición (default 10s)")
-    ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    args = ap.parse_args()
+# --------------------------------------------------------------------------- #
+# Menú interactivo
+# --------------------------------------------------------------------------- #
 
-    if args.list_dorks:
-        for cat, ds in DORKS.items():
-            print(f"[{cat}]")
-            for d in ds:
-                print(f"  {d}")
-        return 0
+MENU = """  [1] Buscar con un dork propio
+  [2] Categoría: SQLi
+  [3] Categoría: login
+  [4] Categoría: admin
+  [5] Categoría: exposed_files
+  [6] Ver los dorks incluidos
+  [7] Validar proxies
+  [8] Salir"""
 
-    if args.check_proxies:
-        return check_proxies(args.check_proxies, args.test, args.timeout)
 
-    if not args.query and not args.category and not args.dorks:
-        ap.error("proporciona un dork, --category o --dorks")
+def ask(prompt: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    try:
+        v = input(f"  {prompt}{suffix}: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        raise SystemExit(0)
+    return v or default
 
-    return cmd_search(args)
+
+def menu_search(queries) -> None:
+    proxies_file = ask("Archivo de proxies (Enter = sin proxies)", "")
+    scope_file = ask("Archivo de scope/dominios autorizados (Enter = sin filtro)", "")
+    out_file = ask("Guardar resultados en archivo (Enter = solo pantalla)", "")
+    max_s = ask("Resultados por dork", "10")
+    api_key = ask("Google Custom Search API key (Enter = scraping directo)", "")
+    cx = ask("Google Custom Search engine id / cx", "") if api_key else ""
+
+    proxies = load_proxies(proxies_file) if proxies_file else []
+    scope = load_scope(scope_file) if scope_file else []
+    try:
+        max_results = int(max_s) if max_s else 10
+    except ValueError:
+        max_results = 10
+
+    run_queries(queries, proxies, scope, out_file, max_results, api_key, cx, 1.0)
+
+
+def menu_validate_proxies() -> None:
+    proxies_file = ask("Archivo de proxies", "proxies.txt")
+    test_s = ask("¿Probar conectividad real? (s/n)", "n").lower()
+    try:
+        check_proxies(proxies_file, test=test_s in ("s", "si", "sí", "y", "yes"), timeout=10)
+    except FileNotFoundError:
+        print(f"\n[!] No existe {proxies_file}")
+
+
+def interactive_menu() -> None:
+    while True:
+        print(BANNER)
+        print(MENU)
+        choice = ask("Elige una opción", "1")
+
+        if choice == "1":
+            dork = ask("Dork de búsqueda")
+            if not dork:
+                print("\n[!] Dork vacío, cancelado\n")
+                continue
+            menu_search([dork])
+        elif choice == "2":
+            menu_search(DORKS["sqli"])
+        elif choice == "3":
+            menu_search(DORKS["login"])
+        elif choice == "4":
+            menu_search(DORKS["admin"])
+        elif choice == "5":
+            menu_search(DORKS["exposed_files"])
+        elif choice == "6":
+            print()
+            for cat, ds in DORKS.items():
+                print(f"[{cat}]")
+                for d in ds:
+                    print(f"  {d}")
+            print()
+        elif choice == "7":
+            menu_validate_proxies()
+        elif choice in ("8", "0", "salir", "exit", "q"):
+            print("\n[*] Adiós.\n")
+            break
+        else:
+            print("\n[!] Opción no válida\n")
+
+
+def main() -> None:
+    interactive_menu()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

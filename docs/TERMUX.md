@@ -45,13 +45,19 @@ git clone https://github.com/HacheJotaDev/DorkSearch.git
 cd DorkSearch
 ```
 
-## 6. Ejecutar
+## 6. Ejecutar (menú por consola)
 
 ```bash
-python dork_search.py --list-dorks
-python dork_search.py 'inurl:index.php?id='
-python dork_search.py --category sqli --proxies proxies.txt --out urls.txt
+python dork_search.py
 ```
+
+Aparece un **menú interactivo** (no hay que teclear comandos):
+
+- `[1]` Buscar con un dork propio
+- `[2]`-`[5]` categorías (SQLi, login, admin, exposed_files)
+- `[6]` Ver dorks incluidos
+- `[7]` Validar proxies
+- `[8]` Salir
 
 > En Termux el intérprete es `python` (no `python3`).
 
@@ -64,10 +70,11 @@ cp proxies.example.txt proxies.txt
 # edita proxies.txt con:  nano proxies.txt
 ```
 
-Valida tus proxies:
+Valida tus proxies desde el menú → opción `[7]`:
 
 ```bash
-python dork_search.py --check-proxies proxies.txt --test
+python dork_search.py
+# opción [7] -> validar proxies
 ```
 
 ## Notas

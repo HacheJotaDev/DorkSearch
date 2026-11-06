@@ -4,8 +4,8 @@
 dorks de Google para búsquedas personalizadas. Permite extraer URLs que sirven
 para **SQL Injection** (reconocimiento) y otras búsquedas OSINT.
 
-**100% por consola** — sin interfaz gráfica — y **multiplataforma**:
-Linux, Windows y **Termux (Android)**.
+**100% por consola, con menú interactivo** — no hay que teclear comandos ni
+banderas. Multiplataforma: Linux, Windows y **Termux (Android)**.
 
 - **PROXY:** YES
 - **PROXY TYPE:** RESIDENTIALS ROTATIVE PROXYS
@@ -41,16 +41,9 @@ python3 -m pip install --user requests
 py -m pip install requests
 ```
 
-También puedes instalar Python con `winget`:
-
-```powershell
-winget install Python.Python.3.12
-```
-
 ### 📱 Termux (Android)
 
-Instala [Termux](https://f-droid.org/packages/com.termux/) (recomendado desde
-F-Droid) y ejecuta:
+Instala [Termux](https://f-droid.org/packages/com.termux/) y ejecuta:
 
 ```bash
 pkg update && pkg upgrade -y
@@ -58,37 +51,38 @@ pkg install -y python
 python -m pip install requests
 ```
 
-> Guía completa y detallada en [`docs/TERMUX.md`](docs/TERMUX.md).
+> Guía completa en [`docs/TERMUX.md`](docs/TERMUX.md).
 
 ---
 
-## 🚀 Uso (por consola)
+## 🚀 Uso (menú por consola)
+
+Solo ejecuta el programa y navega por el menú:
 
 ```bash
-# Ver los dorks incluidos
-python3 dork_search.py --list-dorks          # Windows: py dork_search.py --list-dorks
-
-# Una búsqueda con un dork concreto
-python3 dork_search.py 'inurl:index.php?id='
-
-# Toda la categoría SQLi, con proxies rotativos
-python3 dork_search.py --category sqli --proxies proxies.txt --out urls.txt
-
-# Con proxies + scope (solo objetivos autorizados)
-python3 dork_search.py 'inurl:index.php?id=' --proxies proxies.txt --scope scope.txt
-
-# Backend fiable con Google Custom Search API
-python3 dork_search.py 'inurl:index.php?id=' --api-key TU_KEY --cx TU_CX
-
-# Dorks propios desde un archivo
-python3 dork_search.py --dorks dorks.txt
+python3 dork_search.py          # Linux/Termux
+py dork_search.py               # Windows
 ```
 
-En **Windows**, sustituye `python3` por `py`:
+Aparece este menú:
 
-```powershell
-py dork_search.py --category sqli --proxies proxies.txt
 ```
+===========================================================
+   URLS GOOGLE DORKS SEARCHER  v2.1.0
+===========================================================
+
+  [1] Buscar con un dork propio
+  [2] Categoría: SQLi
+  [3] Categoría: login
+  [4] Categoría: admin
+  [5] Categoría: exposed_files
+  [6] Ver los dorks incluidos
+  [7] Validar proxies
+  [8] Salir
+```
+
+Eliges un número y respondes las preguntas (proxies, archivo de salida,
+resultados por dork…). Nada de comandos que memorizar.
 
 ---
 
@@ -104,15 +98,8 @@ Archivo `proxies.txt` (una línea por proxy):
 
 Cada petición sale por un proxy elegido al azar (rotativo).
 
-**Validar tus proxies** antes de buscar:
-
-```bash
-# Solo valida el formato
-python3 dork_search.py --check-proxies proxies.txt
-
-# Prueba conectividad real (devuelve la IP de salida)
-python3 dork_search.py --check-proxies proxies.txt --test
-```
+**Validar proxies** desde el menú → opción `[7]`. Te pregunta el archivo y si
+quieres probar conectividad real (devuelve la IP de salida de cada proxy).
 
 > Crea `proxies.txt` a partir de `proxies.example.txt`. No subas tus proxies
 > reales al repositorio (está en `.gitignore`).
@@ -123,30 +110,10 @@ python3 dork_search.py --check-proxies proxies.txt --test
 
 | Categoría | Ejemplos |
 |-----------|----------|
-| `sqli` | `inurl:"index.php?id="`, `inurl:"product.php?id="`, `inurl:"news.php?id="` |
+| `SQLi` | `inurl:"index.php?id="`, `inurl:"product.php?id="`, `inurl:"news.php?id="` |
 | `login` | `inurl:"login.php"`, `intitle:"sign in" inurl:"admin"` |
 | `admin` | `intitle:"admin panel"`, `inurl:"admin.php"` |
 | `exposed_files` | `intitle:"index of" ".env"`, `filetype:sql inurl:dump` |
-
----
-
-## ⚙️ Opciones
-
-```
-query                 Un dork (p.ej. 'inurl:index.php?id=')
---category {sqli,login,admin,exposed_files}
---dorks FILE          Dorks propios (uno por línea)
---list-dorks          Lista los dorks incluidos
---out FILE            Guarda las URLs
---max N               Resultados por dork (default 10)
---proxies FILE        Archivo de proxies rotativos
---api-key / --cx      Google Custom Search JSON API
---scope FILE          Filtro a dominios autorizados
---delay SEC           Pausa entre consultas (default 1.0)
---check-proxies FILE  Valida proxies y sale
---test                Con --check-proxies: prueba conexión real
---version             Versión
-```
 
 ---
 
@@ -155,11 +122,12 @@ query                 Un dork (p.ej. 'inurl:index.php?id=')
 Esta herramienta es para **reconocimiento OSINT**, auditorías de seguridad
 **autorizadas**, bug bounty **dentro del scope** del programa e investigación
 defensiva. Busca y lista URLs; **no explota nada**. Explotar sistemas de
-terceros sin autorización es ilegal. Usa `--scope` para restringirte a tus
-objetivos autorizados.
+terceros sin autorización es ilegal. Usa el archivo de scope para restringirte
+a tus objetivos autorizados.
 
 ## 📝 Nota sobre Google
 
 El scraping directo de Google devuelve frecuentemente una página de
 consentimiento (sin resultados orgánicos). Para un funcionamiento fiable usa
-`--api-key` / `--cx` con una [Google Custom Search JSON API](https://developers.google.com/custom-search/v1/overview).
+la **Google Custom Search JSON API** (te la pide el menú al buscar, o
+configúrala como API key + engine id).
